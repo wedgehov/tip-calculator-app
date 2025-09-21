@@ -1,1 +1,22 @@
 @import "tailwindcss";
+
+@theme {
+  --font-space-mono: "Space Mono", monospace;
+
+  --color-gray-50: #F3F9FA;
+  --color-gray-200: #C5E4E7;
+  --color-gray-300: #9EBBBD;
+  --color-gray-400: #7F9D9F;
+  --color-gray-500: #5E7A7D;
+  --color-gray-550: #547878;
+  --color-gray-600: #3D6666;
+
+  --color-green-200: #9FE8DF;
+  --color-green-400: #26C2AE;
+  --color-green-750: #0D686D;
+  --color-green-800: #085C61;
+  --color-green-900: #00474B;
+
+  --color-orange-400: #E17052;
+
+}

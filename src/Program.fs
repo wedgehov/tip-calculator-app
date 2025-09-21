@@ -1,173 +1,325 @@
 ﻿module App
 
+open System
+open System.Globalization
 open Elmish
 open Feliz
 open Browser.Dom
 open Fable.Core.JsInterop
 
-// ---------- Icons ----------
-module Icons =
-    let check =
-        Svg.svg [
-            svg.xmlns "http://www.w3.org/2000/svg"
-            svg.fill "none"
-            svg.viewBox (0, 0, 24, 24)
-            svg.strokeWidth 2.5
-            svg.stroke "currentColor"
-            svg.className "w-4 h-4"
-            svg.children [
-                Svg.path [
-                    Interop.svgAttribute "stroke-linecap" "round"
-                    Interop.svgAttribute "stroke-linejoin" "round"
-                    svg.d "M4.5 12.75l6 6 9-13.5"
-                ]
-            ]
-        ]
-
-    let trash =
-        Svg.svg [
-            svg.xmlns "http://www.w3.org/2000/svg"
-            svg.fill "none"
-            svg.viewBox (0, 0, 24, 24)
-            svg.strokeWidth 1.5
-            svg.stroke "currentColor"
-            svg.className "w-5 h-5"
-            svg.children [
-                Svg.path [
-                    Interop.svgAttribute "stroke-linecap" "round"
-                    Interop.svgAttribute "stroke-linejoin" "round"
-                    svg.d "M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
-                ]
-            ]
-        ]
-
 // ---------- Elmish ----------
-type Todo = { Id: int; Description: string; IsDone: bool }
-type Model = { Todos: Todo list; Input: string; NextId: int }
+
+// --- Domain ---
+
+type TipSelection =
+  | Preset of int       // 5 | 10 | 15 | 25 | 50
+  | Custom
+
+type Model =
+  { BillText        : string
+    PeopleText      : string
+    Tip             : TipSelection option
+    CustomTipText   : string
+    TipPerPerson    : decimal
+    TotalPerPerson  : decimal
+    PeopleIsZero    : bool }
+
 type Msg =
-  | UpdateInput of string
-  | AddTodo
-  | ToggleTodo of int
-  | DeleteTodo of int
+  | BillChanged        of string
+  | PeopleChanged      of string
+  | SelectPresetTip    of int
+  | SelectCustomTip
+  | CustomTipChanged   of string
+  | Reset
+  | Recalculate
+
+// --- Init ---
 
 let init () : Model * Cmd<Msg> =
-  {
-    Todos = [
-      { Id = 1; Description = "Learn F#"; IsDone = true }
-      { Id = 2; Description = "Learn Fable"; IsDone = true }
-      { Id = 3; Description = "Build something awesome"; IsDone = false }
-    ]
-    Input = ""
-    NextId = 4
-  }, Cmd.none
+  let model =
+    { BillText       = ""
+      PeopleText     = ""
+      Tip            = None
+      CustomTipText  = ""
+      TipPerPerson   = 0m
+      TotalPerPerson = 0m
+      PeopleIsZero   = false }
+  model, Cmd.none
+
+// --- Helpers ---
+
+let private tryParseDecimal (s: string) =
+  match Decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture) with
+  | true, v -> Some v
+  | _ -> None
+
+let private tryParseInt (s: string) =
+  match Int32.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture) with
+  | true, v -> Some v
+  | _ -> None
+
+let private formatAmount (d: decimal) =
+  sprintf "%.2f" (float d)
+
+let private effectiveTipPercent (m: Model) : decimal =
+  match m.Tip with
+  | Some (Preset p) -> decimal p
+  | Some Custom ->
+      match tryParseDecimal m.CustomTipText with
+      | Some v when v >= 0m -> v
+      | _ -> 0m
+  | None -> 0m
+
+let private recalc (m: Model) : Model =
+  let bill =
+    match tryParseDecimal m.BillText with
+    | Some b when b >= 0m -> b
+    | _ -> 0m
+
+  let people =
+    match tryParseInt m.PeopleText with
+    | Some p when p >= 0 -> p
+    | _ -> 0
+
+  let tipPct = effectiveTipPercent m / 100m
+  let peopleIsZero = (people = 0) && (m.PeopleText.Trim() <> "")
+
+  if people <= 0 then
+    { m with
+        TipPerPerson = 0m
+        TotalPerPerson = 0m
+        PeopleIsZero = peopleIsZero }
+  else
+    let tipTotal = bill * tipPct
+    let per = decimal people
+    let tipPerPerson = if per > 0m then tipTotal / per else 0m
+    let totalPerPerson = if per > 0m then (bill + tipTotal) / per else 0m
+    { m with
+        TipPerPerson = tipPerPerson
+        TotalPerPerson = totalPerPerson
+        PeopleIsZero = false }
+
+// --- Update ---
 
 let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
   match msg with
-  | UpdateInput str ->
-      { model with Input = str }, Cmd.none
+  | BillChanged text ->
+      { model with BillText = text } |> recalc, Cmd.none
 
-  | AddTodo ->
-      if System.String.IsNullOrWhiteSpace model.Input then
-        model, Cmd.none
-      else
-        let newTodo =
-          { Id = model.NextId; Description = model.Input.Trim(); IsDone = false }
-        { model with
-            Input = ""
-            Todos = model.Todos @ [ newTodo ]
-            NextId = model.NextId + 1
-        }, Cmd.none
+  | PeopleChanged text ->
+      { model with PeopleText = text } |> recalc, Cmd.none
 
-  | ToggleTodo todoId ->
-      let updated =
-        model.Todos
-        |> List.map (fun t -> if t.Id = todoId then { t with IsDone = not t.IsDone } else t)
-      { model with Todos = updated }, Cmd.none
+  | SelectPresetTip pct ->
+      { model with Tip = Some (Preset pct) } |> recalc, Cmd.none
 
-  | DeleteTodo todoId ->
-      { model with Todos = model.Todos |> List.filter (fun t -> t.Id <> todoId) }, Cmd.none
+  | SelectCustomTip ->
+      { model with Tip = Some Custom } |> recalc, Cmd.none
 
-// ---------- View ----------
-let view (model: Model) (dispatch: Msg -> unit) =
-  Html.main [
-    prop.className "min-h-screen flex flex-col items-center justify-center bg-zinc-900 text-white font-sans p-6"
+  | CustomTipChanged text ->
+      let m' =
+        match model.Tip with
+        | Some Custom -> model
+        | _ -> { model with Tip = Some Custom }
+      { m' with CustomTipText = text } |> recalc, Cmd.none
+
+  | Reset ->
+      fst (init ()), Cmd.none
+
+  | Recalculate ->
+      recalc model, Cmd.none
+
+// --- View helpers ---
+
+let tipButton (selected: bool) (label: string) (onClick: unit -> unit) =
+  Html.button [
+    prop.className
+      ([ "w-full py-[6px] rounded-[5px] font-bold transition"
+         if selected then
+           "bg-green-400 text-green-900"
+         else
+           "bg-teal-900 text-white hover:bg-green-200 hover:text-green-900" ]
+       |> String.concat " ")
+    prop.onClick (fun _ -> onClick ())
+    prop.text label
+  ]
+
+let textInput (iconSrc: string option) (value: string) (placeholder: string) (onChange: string -> unit) (isError: bool) =
+  Html.div [
+    prop.className "relative"
     prop.children [
+      match iconSrc with
+      | Some src ->
+        Html.img [
+          prop.src src
+          prop.alt ""
+          prop.className "absolute left-4 top-1/2 -translate-y-1/2"
+        ]
+      | None -> Html.none
+
+      Html.input [
+        prop.type' "text"
+        prop.value value
+        prop.placeholder placeholder
+        prop.onChange onChange
+        prop.className (
+          [ "bg-gray-50 text-green-900 text-2xl font-bold text-right rounded-[5px] block w-full p-2.5 outline-none" ]
+          @ (if isError then
+               [ "border-2 border-orange-400 focus:border-orange-400" ]
+             else
+               [ "border-2 border-transparent focus:border-green-400" ])
+          @ (if iconSrc.IsSome then [ "pl-12" ] else [])
+          |> String.concat " ")
+      ]
+    ]
+  ]
+
+// --- View ---
+
+let view (model: Model) (dispatch: Msg -> unit) =
+  let selectedTip =
+    match model.Tip with
+    | Some (Preset p) -> Some p
+    | Some Custom -> None
+    | None -> None
+
+  Html.div [
+    prop.className "min-h-screen bg-gray-200 flex flex-col items-center"
+    prop.children [
+
+      Html.img [
+        prop.src "../public/images/logo.svg"
+        prop.alt "Logo"
+        prop.className "mt-[50px] mb-[40.86px] lg:mt-[163px] lg:mb-[87.86px]"
+      ]
+
       Html.div [
-        prop.className "w-full max-w-lg space-y-6"
+        prop.className "bg-white w-full max-w-[608px] lg:max-w-[920px] rounded-t-[25px] md:rounded-[25px] px-6 py-[34px] lg:py-8 grid lg:grid-cols-2 gap-8 md:gap-10 lg:gap-12 md:py-[54px] md:px-[75.5px] lg:px-[40px] md:mx-20 md:mb-20"
         prop.children [
-          Html.h1 [
-            prop.className "text-4xl font-bold tracking-tight text-center text-zinc-200"
-            prop.text "Feliz Todo App"
-          ]
+
+          // Left column: Inputs
           Html.div [
-            prop.className "rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 shadow-lg space-y-6 backdrop-blur-sm"
+            prop.className "flex flex-col gap-8 mx-2 md:mx-0 md:gap-6 lg:my-[16.5px] lg:gap-10"
+
             prop.children [
-              // Input form
-              Html.form [
-                prop.className "flex gap-3"
-                prop.onSubmit (fun ev -> ev.preventDefault(); dispatch AddTodo)
-                prop.children [
-                  Html.input [
-                    prop.className "flex-1 px-4 py-2 rounded-lg border border-zinc-700 bg-transparent focus:outline-none focus:ring-2 focus:ring-zinc-500 transition-shadow"
-                    prop.placeholder "What needs to be done?"
-                    prop.value model.Input
-                    prop.onChange (UpdateInput >> dispatch)
+
+              // Bill
+              Html.div [
+                Html.label [
+                  prop.htmlFor "bill"
+                  prop.className "text-gray-600 mb-2 block"
+                  prop.text "Bill"
+                ]
+                textInput (Some "../public/images/icon-dollar.svg") model.BillText "0" (BillChanged >> dispatch) false
+              ]
+
+              // Tip selection
+              Html.div [
+                Html.label [
+                  prop.htmlFor "tip"
+                  prop.className "text-gray-500 mb-2 block"
+                  prop.text "Select Tip %"
+                ]
+                Html.div [
+                  prop.className "grid grid-cols-2 md:grid-cols-3 gap-4"
+                  prop.children [
+                    [
+                      tipButton (model.Tip = Some Custom) "Custom" (fun () -> dispatch SelectCustomTip)
+                    ]
+                    |> List.append (
+                      [5;10;15;25;50]
+                      |> List.map (fun p ->
+                          tipButton (selectedTip = Some p)
+                                    (sprintf "%d%%" p)
+                                    (fun () -> dispatch (SelectPresetTip p))))
+                      |> React.fragment 
                   ]
-                  Html.button [
-                    prop.className "px-6 py-2 rounded-lg border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 transition-colors"
-                    prop.text "Add"
+                ]
+
+                // Custom input (only when Custom selected)
+                match model.Tip with
+                | Some Custom ->
+                    Html.div [
+                      prop.className "mt-3"
+                      prop.children [
+                        textInput None model.CustomTipText "Enter custom %" (CustomTipChanged >> dispatch) false
+                      ]
+                    ]
+                | _ -> Html.none
+              ]
+
+              // Number of people
+              Html.div [
+                Html.div [
+                  prop.className "flex items-center justify-between mb-2"
+                  prop.children [
+                    Html.label [
+                      prop.htmlFor "people"
+                      prop.className "text-gray-600"
+                      prop.text "Number of People"
+                    ]
+                    if model.PeopleIsZero then
+                      Html.p [
+                        prop.className "font-bold text-orange-400 text-sm"
+                        prop.text "Can't be zero"
+                      ]
+                    else Html.none
+                  ]
+                ]
+                textInput (Some "../public/images/icon-person.svg") model.PeopleText "0" (PeopleChanged >> dispatch) model.PeopleIsZero
+              ]
+
+            ]
+          ]
+
+          // Right column: Results
+          Html.div [
+            prop.className "bg-green-900 rounded-[15px] px-[23px] md:px-[47.5px] lg:px-[40px] py-[29.5px] md:py-[43px] lg:py-[37.5px] md:p-8 flex flex-col justify-between text-white"
+            prop.children [
+
+              Html.div [
+                prop.className "flex flex-col gap-6"
+                prop.children [
+
+                  // Tip per person
+                  Html.div [
+                    prop.className "flex items-center justify-between"
+                    prop.children [
+                      Html.div [
+                        Html.p [ prop.className "text-sm"; prop.text "Tip Amount" ]
+                        Html.p [ prop.className "text-xs text-white/60"; prop.text "/ person" ]
+                      ]
+                      Html.p [
+                        prop.className "text-3xl md:text-4xl font-bold text-green-400"
+                        prop.text (sprintf "$%s" (formatAmount model.TipPerPerson))
+                      ]
+                    ]
+                  ]
+
+                  // Total per person
+                  Html.div [
+                    prop.className "flex items-center justify-between"
+                    prop.children [
+                      Html.div [
+                        Html.p [ prop.className "text-sm"; prop.text "Total" ]
+                        Html.p [ prop.className "text-xs text-white/60"; prop.text "/ person" ]
+                      ]
+                      Html.p [
+                        prop.className "text-3xl md:text-4xl font-bold text-green-400"
+                        prop.text (sprintf "$%s" (formatAmount model.TotalPerPerson))
+                      ]
+                    ]
                   ]
                 ]
               ]
 
-              // Todo list
               Html.div [
-                prop.className "max-h-96 overflow-y-auto pr-2"
+                prop.className "mt-8"
                 prop.children [
-                  Html.ul [
-                    prop.className "space-y-3"
-                    prop.children [
-                      if List.isEmpty model.Todos then
-                        Html.li [
-                          prop.className "text-center text-zinc-500 py-4"
-                          prop.text "All done! ✨"
-                        ]
-                      else
-                        for todo in model.Todos do
-                          Html.li [
-                            prop.key todo.Id
-                            prop.className "flex items-center gap-4 p-4 rounded-lg bg-zinc-800/50 transition-all hover:bg-zinc-800/70"
-                            prop.children [
-                              // Checkbox-like button
-                              Html.button [
-                                prop.classes [
-                                  "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all"
-                                  if todo.IsDone then "border-green-500 bg-green-500" else "border-zinc-600"
-                                ]
-                                prop.onClick (fun _ -> dispatch (ToggleTodo todo.Id))
-                                prop.children [
-                                  if todo.IsDone then Icons.check
-                                ]
-                              ]
-                              // Description
-                              Html.span [
-                                prop.classes [
-                                  "flex-1"
-                                  if todo.IsDone then "line-through text-zinc-500" else "text-zinc-200"
-                                ]
-                                prop.text todo.Description
-                              ]
-                              // Delete button
-                              Html.button [
-                                prop.className "ml-auto text-zinc-500 hover:text-red-500 transition-colors"
-                                prop.onClick (fun _ -> dispatch (DeleteTodo todo.Id))
-                                prop.children [
-                                  Icons.trash
-                                ]
-                              ]
-                            ]
-                          ]
-                    ]
+                  Html.button [
+                    prop.className "w-full py-3 rounded-lg font-bold bg-green-750 hover:bg-green-200 text-green-800 disabled:opacity-50"
+                    prop.disabled false
+                    prop.onClick (fun _ -> dispatch Reset)
+                    prop.text "RESET"
                   ]
                 ]
               ]
@@ -183,10 +335,12 @@ let reactDomClient = importAll<obj> "react-dom/client"
 
 let start () =
   let container = document.getElementById "root"
-  let root = reactDomClient?createRoot(container)
-  Program.mkProgram init update view
-  |> Program.withSetState (fun model dispatch ->
-       root?render(view model dispatch))
-  |> Program.run
+  if isNull container then
+    failwith "Root element with id 'root' not found."
+  else
+    let root = reactDomClient?createRoot(container)
+    Program.mkProgram init update view
+    |> Program.withSetState (fun model dispatch -> root?render(view model dispatch))
+    |> Program.run
 
 do start ()
