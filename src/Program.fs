@@ -3,8 +3,8 @@
 open System
 open System.Globalization
 open Elmish
+open Elmish.React
 open Feliz
-open Browser.Dom
 open Fable.Core.JsInterop
 
 // Import assets to let Vite handle the paths
@@ -335,17 +335,9 @@ let view (model: Model) (dispatch: Msg -> unit) =
     ]
   ]
 
-// ---------- React 18 mount WITHOUT Elmish.React ----------
-let reactDomClient = importAll<obj> "react-dom/client"
-
 let start () =
-  let container = document.getElementById "root"
-  if isNull container then
-    failwith "Root element with id 'root' not found."
-  else
-    let root = reactDomClient?createRoot(container)
-    Program.mkProgram init update view
-    |> Program.withSetState (fun model dispatch -> root?render(view model dispatch))
-    |> Program.run
+  Program.mkProgram init update view
+  |> Program.withReactBatched "root"
+  |> Program.run
 
 do start ()
