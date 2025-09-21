@@ -7,6 +7,11 @@ open Feliz
 open Browser.Dom
 open Fable.Core.JsInterop
 
+// Import assets to let Vite handle the paths
+let logoUrl: string = importDefault "../public/images/logo.svg"
+let dollarIconUrl: string = importDefault "../public/images/icon-dollar.svg"
+let personIconUrl: string = importDefault "../public/images/icon-person.svg"
+
 // ---------- Elmish ----------
 
 // --- Domain ---
@@ -187,7 +192,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
     prop.children [
 
       Html.img [
-        prop.src "../public/images/logo.svg"
+        prop.src logoUrl
         prop.alt "Logo"
         prop.className "mt-[50px] mb-[40.86px] lg:mt-[163px] lg:mb-[87.86px]"
       ]
@@ -209,7 +214,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                   prop.className "text-gray-600 mb-2 block"
                   prop.text "Bill"
                 ]
-                textInput (Some "../public/images/icon-dollar.svg") model.BillText "0" (BillChanged >> dispatch) false
+                textInput (Some dollarIconUrl) model.BillText "0" (BillChanged >> dispatch) false
               ]
 
               // Tip selection
@@ -265,7 +270,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     else Html.none
                   ]
                 ]
-                textInput (Some "../public/images/icon-person.svg") model.PeopleText "0" (PeopleChanged >> dispatch) model.PeopleIsZero
+                textInput (Some personIconUrl) model.PeopleText "0" (PeopleChanged >> dispatch) model.PeopleIsZero
               ]
 
             ]

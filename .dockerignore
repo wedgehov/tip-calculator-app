@@ -1,0 +1,11 @@
+**/[Bb]in
+**/[Oo]bj
+dist
+node_modules
+.git
+.gitignore
+.idea
+.vs
+.vscode
+Dockerfile
+docker-compose.yml
