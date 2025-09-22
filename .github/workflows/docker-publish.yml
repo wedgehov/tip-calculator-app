@@ -21,6 +21,9 @@ jobs:
       # 1. Check out the repository code
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Fetch all history for all tags and branches
+          fetch-depth: 0
 
       # 2. Log in to the GitHub Container Registry
       - name: Log in to GitHub Container Registry
@@ -36,6 +39,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
+          # Also generate tags for git tags
+          tags: type=semver,pattern={{version}}
 
       # 4. Build and push the Docker image
       - name: Build and push Docker image
