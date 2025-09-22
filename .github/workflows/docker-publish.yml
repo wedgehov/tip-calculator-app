@@ -39,8 +39,11 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
-          # Also generate tags for git tags
-          tags: type=semver,pattern={{version}}
+          tags: |
+            # Push a 'main' tag for pushes to the main branch
+            type=ref,event=branch,pattern=main
+            # Push a 'vX.Y.Z' tag for version tags
+            type=semver,pattern={{raw}}
 
       # 4. Build and push the Docker image
       - name: Build and push Docker image
