@@ -54,12 +54,12 @@ This is the easiest way to get started, as it bundles all dependencies into a co
 
 ### Without Docker
 
-If you prefer to run the project on your local machine, you'll need to have Node.js (v20.x or later) and the .NET 9 SDK installed.
+If you prefer to run the project on your local machine, you'll need to have Bun (v1.2.x or later) and the .NET 9 SDK installed.
 
 1.  Clone the repository.
-2.  Install Node.js dependencies:
+2.  Install dependencies:
     ```bash
-    npm install
+    bun install
     ```
 3.  Restore .NET local tools (which includes the Fable compiler):
     ```bash
@@ -67,7 +67,7 @@ If you prefer to run the project on your local machine, you'll need to have Node
     ```
 4.  Start the Vite development server:
     ```bash
-    npm run dev
+    bun run dev
     ```
 5.  Open your browser and navigate to the local URL provided by Vite (usually `http://localhost:5173`).
 

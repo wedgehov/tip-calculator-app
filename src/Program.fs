@@ -1,16 +1,14 @@
-﻿module App
+module App
 
 open System
 open System.Globalization
 open Elmish
 open Elmish.React
 open Feliz
-open Fable.Core.JsInterop
 
-// Import assets to let Vite handle the paths
-let logoUrl: string = importDefault "../public/images/logo.svg"
-let dollarIconUrl: string = importDefault "../public/images/icon-dollar.svg"
-let personIconUrl: string = importDefault "../public/images/icon-person.svg"
+let logoUrl = "/images/logo.svg"
+let dollarIconUrl = "/images/icon-dollar.svg"
+let personIconUrl = "/images/icon-person.svg"
 
 // ---------- Elmish ----------
 
@@ -231,14 +229,15 @@ let view (model: Model) (dispatch: Msg -> unit) =
                       tipButton (model.Tip = Some Custom) "Custom" (fun () -> dispatch SelectCustomTip)
                     ]
                     |> List.append (
-                      [5;10;15;25;50]
+                      [5; 10; 15; 25; 50]
                       |> List.map (fun p ->
                           tipButton (selectedTip = Some p)
                                     (sprintf "%d%%" p)
                                     (fun () -> dispatch (SelectPresetTip p))))
-                      |> React.fragment 
+                      |> React.fragment
                   ]
                 ]
+
 
                 // Custom input (only when Custom selected)
                 match model.Tip with

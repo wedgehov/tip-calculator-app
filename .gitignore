@@ -12,6 +12,7 @@ public/js/
 # Node
 node_modules/
 npm-debug.log*
+bun-debug.log*
 yarn-error.log
 pnpm-debug.log
 

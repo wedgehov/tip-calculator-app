@@ -1,27 +1,26 @@
 # Stage 1: Build the application
 FROM mcr.microsoft.com/dotnet/sdk:9.0-bookworm-slim AS build
 
-# Install Node.js and npm
+# Install Bun
 RUN apt-get update && \
-    apt-get install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs
+    apt-get install -y curl unzip && \
+    curl -fsSL https://bun.sh/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
 WORKDIR /app
-
-# Copy project files and restore dependencies to leverage Docker layer caching
-COPY package.json package-lock.json ./
-RUN npm install
 
 # Copy dotnet tool manifest and restore tools (Fable)
 COPY .config/dotnet-tools.json ./.config/
 RUN dotnet tool restore
 
-# Copy the rest of the application source
+# Copy application source (including bun.lock when present)
 COPY . .
 
+# Restore JavaScript dependencies with Bun
+RUN bun install
+
 # Build the application
-RUN npm run build
+RUN bun run build
 
 # Stage 2: Serve the application using Nginx
 FROM nginx:1.27-alpine AS final
