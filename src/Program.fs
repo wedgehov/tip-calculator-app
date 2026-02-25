@@ -286,7 +286,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 ]
                 Html.div [
                   prop.className "grid grid-cols-2 md:grid-cols-3 gap-4"
-                  prop.children [
+                  prop.children (
                     [
                       tipButton (model.Tip = Some Custom) "Custom" (fun () -> dispatch SelectCustomTip)
                     ]
@@ -298,8 +298,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                           (sprintf "%d%%" p)
                           (fun () -> dispatch (SelectPresetTip p)))
                     )
-                    |> React.fragment
-                  ]
+                  )
                 ]
 
                 match model.Tip with
