@@ -175,7 +175,7 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
 let tipButton (selected: bool) (label: string) (onClick: unit -> unit) =
   Html.button [
     prop.className
-      ([ "w-full py-[6px] rounded-[5px] font-bold transition"
+      ([ "w-full py-[6px] rounded-[5px] font-bold transition cursor-pointer"
          if selected then
            "bg-green-400 text-green-900"
          else
@@ -210,7 +210,7 @@ let textInput
         prop.placeholder placeholder
         prop.onChange onChange
         prop.className (
-          [ "bg-gray-50 text-green-900 text-2xl font-bold text-right rounded-[5px] block w-full p-2.5 outline-none" ]
+          [ "bg-gray-50 text-green-900 text-2xl font-bold text-right rounded-[5px] block w-full p-2.5 outline-none cursor-pointer" ]
           @ (if isError then
                [ "border-2 border-orange-400 focus:border-orange-400" ]
              else
@@ -228,6 +228,10 @@ let view (model: Model) (dispatch: Msg -> unit) =
     match model.Tip with
     | Some(Preset p) -> Some p
     | _ -> None
+
+  let customSelected = (model.Tip = Some Custom)
+  let customHasError = customSelected && fieldHasError model.CustomTipState
+  let customErrorText = fieldErrorText model.CustomTipState |> Option.defaultValue ""
 
   let tipPerPerson, totalPerPerson = computeTotals model
 
@@ -288,7 +292,42 @@ let view (model: Model) (dispatch: Msg -> unit) =
                   prop.className "grid grid-cols-2 md:grid-cols-3 gap-4"
                   prop.children (
                     [
-                      tipButton (model.Tip = Some Custom) "Custom" (fun () -> dispatch SelectCustomTip)
+                      Html.div [
+                        prop.className "relative w-full"
+                        prop.children [
+                          Html.input [
+                            prop.type' "text"
+                            prop.value model.CustomTipText
+                            prop.placeholder "Custom"
+                            prop.onFocus (fun _ -> dispatch SelectCustomTip)
+                            prop.onChange (CustomTipChanged >> dispatch)
+                            prop.className (
+                              [ "peer w-full py-[6px] rounded-[5px] font-bold transition text-center bg-gray-50 text-green-900 placeholder-gray-550 outline-none border-2 cursor-pointer" ]
+                              @ (if customHasError then
+                                   [ "border-orange-400 focus:border-orange-400" ]
+                                 elif customSelected then
+                                   [ "border-green-400 focus:border-green-400" ]
+                                 else
+                                   [ "border-transparent focus:border-green-400" ])
+                              |> String.concat " ")
+                          ]
+                          if customHasError then
+                            Html.div [
+                              prop.className "absolute right-0 top-full mt-1 z-20 pointer-events-none opacity-0 translate-y-1 transition-all peer-hover:opacity-100 peer-hover:translate-y-0 peer-focus:opacity-100 peer-focus:translate-y-0"
+                              prop.children [
+                                Html.div [
+                                  prop.className "relative rounded-md bg-orange-400 text-white text-xs font-bold px-2 py-1 shadow-lg whitespace-nowrap"
+                                  prop.children [
+                                    Html.span [ prop.text customErrorText ]
+                                    Html.span [
+                                      prop.className "absolute -top-1 right-3 h-2 w-2 rotate-45 bg-orange-400"
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                        ]
+                      ]
                     ]
                     |> List.append (
                       [ 5; 10; 15; 25; 50 ]
@@ -300,28 +339,6 @@ let view (model: Model) (dispatch: Msg -> unit) =
                     )
                   )
                 ]
-
-                match model.Tip with
-                | Some Custom ->
-                  Html.div [
-                    prop.className "mt-3"
-                    prop.children [
-                      textInput
-                        None
-                        model.CustomTipText
-                        "Enter custom %"
-                        (CustomTipChanged >> dispatch)
-                        (fieldHasError model.CustomTipState)
-                      match fieldErrorText model.CustomTipState with
-                      | Some msg ->
-                        Html.p [
-                          prop.className "mt-2 font-bold text-orange-400 text-sm text-right"
-                          prop.text msg
-                        ]
-                      | None -> Html.none
-                    ]
-                  ]
-                | _ -> Html.none
               ]
 
               Html.div [
@@ -392,7 +409,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 prop.className "mt-8"
                 prop.children [
                   Html.button [
-                    prop.className "w-full py-3 rounded-lg font-bold bg-green-750 hover:bg-green-200 text-green-800 disabled:opacity-50"
+                    prop.className "w-full py-3 rounded-lg font-bold bg-green-750 hover:bg-green-200 text-green-800 disabled:opacity-50 cursor-pointer"
                     prop.disabled isPristine
                     prop.onClick (fun _ -> dispatch Reset)
                     prop.text "RESET"

@@ -6,10 +6,9 @@ This is a solution to the [Tip calculator app challenge on Frontend Mentor](http
 
 - [Overview](#overview)
   - [The challenge](#the-challenge)
-  - [Screenshot](#screenshot)
   - [Links](#links)
 - [Running Locally](#running-locally)
-  - [With Docker (Recommended)](#with-docker-recommended)
+  - [With Docker](#with-docker)
   - [Without Docker](#without-docker)
 - [My process](#my-process)
   - [Built with](#built-with)
@@ -28,20 +27,16 @@ Your users should be able to:
 - See hover states for all interactive elements on the page
 - Calculate the correct tip and total cost of the bill per person
 
-### Screenshot
-
-!
-
 ### Links
 
-- Solution URL: Add solution URL here
-- Live Site URL: Add live site URL here
+- Solution URL: https://github.com/wedgehov/tip-calculator-app
+- Live Site URL: https://tip-calculator-main.vhovet.com
 
 ## Running Locally
 
 There are two ways to run this project: using Docker for a containerized environment, or running it directly on your machine.
 
-### With Docker (Recommended)
+### With Docker
 
 This is the easiest way to get started, as it bundles all dependencies into a container.
 
@@ -99,9 +94,7 @@ This challenge helped me understand where statecharts fit in Elmish and where th
 
 In the future, I'd like to continue improving this project by:
 
-- **Adding more robust form validation:** While there is basic handling for zero people, I could add more sophisticated client-side validation to prevent non-numeric or negative inputs.
 - **Implementing unit tests:** The core calculation logic in the `recalc` function is a perfect candidate for unit testing to ensure its correctness under all conditions.
-- **Refactoring the view:** The main `view` function could be broken down into smaller, more manageable sub-views for better organization as the UI grows.
 
 ### Useful resources
 
@@ -112,6 +105,4 @@ In the future, I'd like to continue improving this project by:
 
 ## Author
 
-- Website - Add your name here
-- Frontend Mentor - @yourusername
-- Twitter - @yourusername
+- Frontend Mentor - @vhovet
