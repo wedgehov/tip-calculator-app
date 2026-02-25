@@ -88,29 +88,12 @@ This project was built using a functional-first approach with F# compiling to Ja
 
 ### What I learned
 
-This project was an excellent opportunity to apply a functional programming paradigm to a front-end application. Using F# with the Elmish architecture (MVU) made state management incredibly clear and predictable. All state changes flow through a single `update` function, which takes the current state and a message, and returns the new state. This eliminates a whole class of state-related bugs.
+This challenge helped me understand where statecharts fit in Elmish and where they do not.
 
-Feliz provides a beautiful, type-safe way to write React components. Instead of JSX, you write F# functions that map directly to React elements, giving you the full power of the F# type system to catch errors at compile time.
-
-Here's a look at the core of the Elmish pattern in this app—the `update` function. It's a simple pattern match over the possible messages (user actions), making the application's logic easy to trace.
-
-```fsharp
-let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
-  match msg with
-  | BillChanged text ->
-      { model with BillText = text } |> recalc, Cmd.none
-
-  | PeopleChanged text ->
-      { model with PeopleText = text } |> recalc, Cmd.none
-
-  | SelectPresetTip pct ->
-      { model with Tip = Some (Preset pct) } |> recalc, Cmd.none
-
-  // ... and so on for other messages
-
-  | Reset ->
-      fst (init ()), Cmd.none
-```
+- Keep Elmish event flow explicit: `Msg -> update -> Model * Cmd<Msg>`.
+- Use control state only for real workflow modes (especially async lifecycles), not for simple arithmetic screens.
+- Treat calculations (like totals) as derived data when they are cheap and deterministic.
+- Avoid overlapping state by separating behavioral control from form/context data.
 
 ### Continued development
 
