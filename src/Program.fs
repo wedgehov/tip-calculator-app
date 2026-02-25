@@ -10,43 +10,46 @@ let logoUrl = "/images/logo.svg"
 let dollarIconUrl = "/images/icon-dollar.svg"
 let personIconUrl = "/images/icon-person.svg"
 
-// ---------- Elmish ----------
-
 // --- Domain ---
 
 type TipSelection =
-  | Preset of int       // 5 | 10 | 15 | 25 | 50
+  | Preset of int
   | Custom
 
+type FieldState =
+  | Pristine
+  | Valid
+  | Invalid of string
+
 type Model =
-  { BillText        : string
-    PeopleText      : string
-    Tip             : TipSelection option
-    CustomTipText   : string
-    TipPerPerson    : decimal
-    TotalPerPerson  : decimal
-    PeopleIsZero    : bool }
+  { BillText: string
+    PeopleText: string
+    Tip: TipSelection option
+    CustomTipText: string
+    BillState: FieldState
+    PeopleState: FieldState
+    CustomTipState: FieldState }
 
 type Msg =
-  | BillChanged        of string
-  | PeopleChanged      of string
-  | SelectPresetTip    of int
+  | BillChanged of string
+  | PeopleChanged of string
+  | SelectPresetTip of int
   | SelectCustomTip
-  | CustomTipChanged   of string
+  | CustomTipChanged of string
   | Reset
-  | Recalculate
 
 // --- Init ---
 
 let init () : Model * Cmd<Msg> =
   let model =
-    { BillText       = ""
-      PeopleText     = ""
-      Tip            = None
-      CustomTipText  = ""
-      TipPerPerson   = 0m
-      TotalPerPerson = 0m
-      PeopleIsZero   = false }
+    { BillText = ""
+      PeopleText = ""
+      Tip = None
+      CustomTipText = ""
+      BillState = Pristine
+      PeopleState = Pristine
+      CustomTipState = Pristine }
+
   model, Cmd.none
 
 // --- Helpers ---
@@ -64,43 +67,86 @@ let private tryParseInt (s: string) =
 let private formatAmount (d: decimal) =
   sprintf "%.2f" (float d)
 
-let private effectiveTipPercent (m: Model) : decimal =
+let private validateBill (text: string) =
+  let t = text.Trim()
+  if t = "" then
+    Pristine
+  else
+    match tryParseDecimal t with
+    | Some v when v >= 0m -> Valid
+    | Some _ -> Invalid "Can't be negative"
+    | None -> Invalid "Invalid number"
+
+let private validatePeople (text: string) =
+  let t = text.Trim()
+  if t = "" then
+    Pristine
+  else
+    match tryParseInt t with
+    | Some v when v > 0 -> Valid
+    | Some 0 -> Invalid "Can't be zero"
+    | Some _ -> Invalid "Can't be negative"
+    | None -> Invalid "Invalid number"
+
+let private validateCustomTip (text: string) =
+  let t = text.Trim()
+  if t = "" then
+    Pristine
+  else
+    match tryParseDecimal t with
+    | Some v when v >= 0m -> Valid
+    | Some _ -> Invalid "Can't be negative"
+    | None -> Invalid "Invalid number"
+
+let private fieldHasError = function
+  | Invalid _ -> true
+  | _ -> false
+
+let private fieldErrorText = function
+  | Invalid msg -> Some msg
+  | _ -> None
+
+let private effectiveTipPercent (m: Model) =
   match m.Tip with
-  | Some (Preset p) -> decimal p
+  | Some(Preset p) -> decimal p
   | Some Custom ->
-      match tryParseDecimal m.CustomTipText with
-      | Some v when v >= 0m -> v
+      match m.CustomTipState, tryParseDecimal m.CustomTipText with
+      | Valid, Some v -> v
       | _ -> 0m
   | None -> 0m
 
-let private recalc (m: Model) : Model =
+let private recalc (m: Model) =
+  let billState = validateBill m.BillText
+  let peopleState = validatePeople m.PeopleText
+
+  let customTipState =
+    match m.Tip with
+    | Some Custom -> validateCustomTip m.CustomTipText
+    | _ -> Pristine
+
+  { m with
+      BillState = billState
+      PeopleState = peopleState
+      CustomTipState = customTipState }
+
+let private computeTotals (m: Model) : decimal * decimal =
   let bill =
-    match tryParseDecimal m.BillText with
-    | Some b when b >= 0m -> b
+    match m.BillState, tryParseDecimal m.BillText with
+    | Valid, Some v -> v
     | _ -> 0m
 
   let people =
-    match tryParseInt m.PeopleText with
-    | Some p when p >= 0 -> p
+    match m.PeopleState, tryParseInt m.PeopleText with
+    | Valid, Some v -> v
     | _ -> 0
 
-  let tipPct = effectiveTipPercent m / 100m
-  let peopleIsZero = (people = 0) && (m.PeopleText.Trim() <> "")
-
   if people <= 0 then
-    { m with
-        TipPerPerson = 0m
-        TotalPerPerson = 0m
-        PeopleIsZero = peopleIsZero }
+    0m, 0m
   else
+    let tipPct = (effectiveTipPercent m) / 100m
     let tipTotal = bill * tipPct
     let per = decimal people
-    let tipPerPerson = if per > 0m then tipTotal / per else 0m
-    let totalPerPerson = if per > 0m then (bill + tipTotal) / per else 0m
-    { m with
-        TipPerPerson = tipPerPerson
-        TotalPerPerson = totalPerPerson
-        PeopleIsZero = false }
+    tipTotal / per, (bill + tipTotal) / per
 
 // --- Update ---
 
@@ -113,23 +159,16 @@ let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
       { model with PeopleText = text } |> recalc, Cmd.none
 
   | SelectPresetTip pct ->
-      { model with Tip = Some (Preset pct) } |> recalc, Cmd.none
+      { model with Tip = Some(Preset pct) } |> recalc, Cmd.none
 
   | SelectCustomTip ->
       { model with Tip = Some Custom } |> recalc, Cmd.none
 
   | CustomTipChanged text ->
-      let m' =
-        match model.Tip with
-        | Some Custom -> model
-        | _ -> { model with Tip = Some Custom }
-      { m' with CustomTipText = text } |> recalc, Cmd.none
+      { model with Tip = Some Custom; CustomTipText = text } |> recalc, Cmd.none
 
   | Reset ->
-      fst (init ()), Cmd.none
-
-  | Recalculate ->
-      recalc model, Cmd.none
+      init ()
 
 // --- View helpers ---
 
@@ -146,7 +185,13 @@ let tipButton (selected: bool) (label: string) (onClick: unit -> unit) =
     prop.text label
   ]
 
-let textInput (iconSrc: string option) (value: string) (placeholder: string) (onChange: string -> unit) (isError: bool) =
+let textInput
+  (iconSrc: string option)
+  (value: string)
+  (placeholder: string)
+  (onChange: string -> unit)
+  (isError: bool)
+  =
   Html.div [
     prop.className "relative"
     prop.children [
@@ -181,14 +226,20 @@ let textInput (iconSrc: string option) (value: string) (placeholder: string) (on
 let view (model: Model) (dispatch: Msg -> unit) =
   let selectedTip =
     match model.Tip with
-    | Some (Preset p) -> Some p
-    | Some Custom -> None
-    | None -> None
+    | Some(Preset p) -> Some p
+    | _ -> None
+
+  let tipPerPerson, totalPerPerson = computeTotals model
+
+  let isPristine =
+    model.BillText = ""
+    && model.PeopleText = ""
+    && model.CustomTipText = ""
+    && model.Tip.IsNone
 
   Html.div [
     prop.className "min-h-screen bg-gray-200 flex flex-col items-center"
     prop.children [
-
       Html.img [
         prop.src logoUrl
         prop.alt "Logo"
@@ -198,24 +249,35 @@ let view (model: Model) (dispatch: Msg -> unit) =
       Html.div [
         prop.className "bg-white w-full max-w-[608px] lg:max-w-[920px] rounded-t-[25px] md:rounded-[25px] px-6 py-[34px] lg:py-8 grid lg:grid-cols-2 gap-8 md:gap-10 lg:gap-12 md:py-[54px] md:px-[75.5px] lg:px-[40px] md:mx-20 md:mb-20"
         prop.children [
-
-          // Left column: Inputs
           Html.div [
             prop.className "flex flex-col gap-8 mx-2 md:mx-0 md:gap-6 lg:my-[16.5px] lg:gap-10"
-
             prop.children [
-
-              // Bill
               Html.div [
-                Html.label [
-                  prop.htmlFor "bill"
-                  prop.className "text-gray-600 mb-2 block"
-                  prop.text "Bill"
+                Html.div [
+                  prop.className "flex items-center justify-between mb-2"
+                  prop.children [
+                    Html.label [
+                      prop.htmlFor "bill"
+                      prop.className "text-gray-600"
+                      prop.text "Bill"
+                    ]
+                    match fieldErrorText model.BillState with
+                    | Some msg ->
+                      Html.p [
+                        prop.className "font-bold text-orange-400 text-sm"
+                        prop.text msg
+                      ]
+                    | None -> Html.none
+                  ]
                 ]
-                textInput (Some dollarIconUrl) model.BillText "0" (BillChanged >> dispatch) false
+                textInput
+                  (Some dollarIconUrl)
+                  model.BillText
+                  "0"
+                  (BillChanged >> dispatch)
+                  (fieldHasError model.BillState)
               ]
 
-              // Tip selection
               Html.div [
                 Html.label [
                   prop.htmlFor "tip"
@@ -229,29 +291,40 @@ let view (model: Model) (dispatch: Msg -> unit) =
                       tipButton (model.Tip = Some Custom) "Custom" (fun () -> dispatch SelectCustomTip)
                     ]
                     |> List.append (
-                      [5; 10; 15; 25; 50]
+                      [ 5; 10; 15; 25; 50 ]
                       |> List.map (fun p ->
-                          tipButton (selectedTip = Some p)
-                                    (sprintf "%d%%" p)
-                                    (fun () -> dispatch (SelectPresetTip p))))
-                      |> React.fragment
+                        tipButton
+                          (selectedTip = Some p)
+                          (sprintf "%d%%" p)
+                          (fun () -> dispatch (SelectPresetTip p)))
+                    )
+                    |> React.fragment
                   ]
                 ]
 
-
-                // Custom input (only when Custom selected)
                 match model.Tip with
                 | Some Custom ->
-                    Html.div [
-                      prop.className "mt-3"
-                      prop.children [
-                        textInput None model.CustomTipText "Enter custom %" (CustomTipChanged >> dispatch) false
-                      ]
+                  Html.div [
+                    prop.className "mt-3"
+                    prop.children [
+                      textInput
+                        None
+                        model.CustomTipText
+                        "Enter custom %"
+                        (CustomTipChanged >> dispatch)
+                        (fieldHasError model.CustomTipState)
+                      match fieldErrorText model.CustomTipState with
+                      | Some msg ->
+                        Html.p [
+                          prop.className "mt-2 font-bold text-orange-400 text-sm text-right"
+                          prop.text msg
+                        ]
+                      | None -> Html.none
                     ]
+                  ]
                 | _ -> Html.none
               ]
 
-              // Number of people
               Html.div [
                 Html.div [
                   prop.className "flex items-center justify-between mb-2"
@@ -261,30 +334,31 @@ let view (model: Model) (dispatch: Msg -> unit) =
                       prop.className "text-gray-600"
                       prop.text "Number of People"
                     ]
-                    if model.PeopleIsZero then
+                    match fieldErrorText model.PeopleState with
+                    | Some msg ->
                       Html.p [
                         prop.className "font-bold text-orange-400 text-sm"
-                        prop.text "Can't be zero"
+                        prop.text msg
                       ]
-                    else Html.none
+                    | None -> Html.none
                   ]
                 ]
-                textInput (Some personIconUrl) model.PeopleText "0" (PeopleChanged >> dispatch) model.PeopleIsZero
+                textInput
+                  (Some personIconUrl)
+                  model.PeopleText
+                  "0"
+                  (PeopleChanged >> dispatch)
+                  (fieldHasError model.PeopleState)
               ]
-
             ]
           ]
 
-          // Right column: Results
           Html.div [
             prop.className "bg-green-900 rounded-[15px] px-[23px] md:px-[47.5px] lg:px-[40px] py-[29.5px] md:py-[43px] lg:py-[37.5px] md:p-8 flex flex-col justify-between text-white"
             prop.children [
-
               Html.div [
                 prop.className "flex flex-col gap-6"
                 prop.children [
-
-                  // Tip per person
                   Html.div [
                     prop.className "flex items-center justify-between"
                     prop.children [
@@ -294,12 +368,11 @@ let view (model: Model) (dispatch: Msg -> unit) =
                       ]
                       Html.p [
                         prop.className "text-3xl md:text-4xl font-bold text-green-400"
-                        prop.text (sprintf "$%s" (formatAmount model.TipPerPerson))
+                        prop.text (sprintf "$%s" (formatAmount tipPerPerson))
                       ]
                     ]
                   ]
 
-                  // Total per person
                   Html.div [
                     prop.className "flex items-center justify-between"
                     prop.children [
@@ -309,7 +382,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                       ]
                       Html.p [
                         prop.className "text-3xl md:text-4xl font-bold text-green-400"
-                        prop.text (sprintf "$%s" (formatAmount model.TotalPerPerson))
+                        prop.text (sprintf "$%s" (formatAmount totalPerPerson))
                       ]
                     ]
                   ]
@@ -321,7 +394,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 prop.children [
                   Html.button [
                     prop.className "w-full py-3 rounded-lg font-bold bg-green-750 hover:bg-green-200 text-green-800 disabled:opacity-50"
-                    prop.disabled false
+                    prop.disabled isPristine
                     prop.onClick (fun _ -> dispatch Reset)
                     prop.text "RESET"
                   ]
