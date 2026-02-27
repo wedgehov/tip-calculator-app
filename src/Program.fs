@@ -242,7 +242,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
     && model.Tip.IsNone
 
   Html.div [
-    prop.className "min-h-screen bg-gray-200 flex flex-col items-center"
+    prop.className "min-h-screen bg-gray-200 flex flex-col items-center font-space-mono"
     prop.children [
       Html.img [
         prop.src logoUrl
